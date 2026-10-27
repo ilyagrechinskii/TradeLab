@@ -2,7 +2,10 @@
 // It has no dependency on HTTP, exchanges, storage or strategy implementations.
 package backtest
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Run validates all inputs before simulation and never modifies them. Signals
 // may be sparse and in any order; each candle index must occur at most once.
@@ -12,6 +15,14 @@ import "fmt"
 // On invalid input or unrepresentable arithmetic, Run returns a zero result
 // and an error rather than a partial or non-finite result.
 func Run(candles []Candle, signals []Signal, cfg Config) (BacktestResult, error) {
+	return RunContext(context.Background(), candles, signals, cfg)
+}
+
+// RunContext preserves Run's execution rules while supporting cancellation.
+func RunContext(ctx context.Context, candles []Candle, signals []Signal, cfg Config) (BacktestResult, error) {
+	if err := ctx.Err(); err != nil {
+		return BacktestResult{}, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return BacktestResult{}, err
 	}
@@ -30,6 +41,9 @@ func Run(candles []Candle, signals []Signal, cfg Config) (BacktestResult, error)
 		EquityCurve:    make([]EquityPoint, 0, len(candles)),
 	}
 	for i, candle := range candles {
+		if err := ctx.Err(); err != nil {
+			return BacktestResult{}, err
+		}
 		if i > 0 {
 			trade, err := execute(&portfolio, indexed[i-1], candle, cfg)
 			if err != nil {

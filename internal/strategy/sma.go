@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -28,11 +29,11 @@ func SMA(candles []backtest.Candle, period int) ([]SMAPoint, error) {
 	if len(candles) < period {
 		return nil, fmt.Errorf("SMA requires at least %d candles", period)
 	}
-	return sma(candles, period)
+	return sma(context.Background(), candles, period)
 }
 
 // sma assumes validated candles and a period in [1, len(candles)].
-func sma(candles []backtest.Candle, period int) ([]SMAPoint, error) {
+func sma(ctx context.Context, candles []backtest.Candle, period int) ([]SMAPoint, error) {
 	points := make([]SMAPoint, 0, len(candles)-period+1)
 	var sum, correction float64
 	// Compensated additions/subtractions reduce accumulated rolling-window error.
@@ -43,6 +44,9 @@ func sma(candles []backtest.Candle, period int) ([]SMAPoint, error) {
 		sum = next
 	}
 	for i, candle := range candles {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if i >= period {
 			add(-candles[i-period].Close)
 		}

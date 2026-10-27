@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -41,6 +42,14 @@ func (s SMACrossover) Generate(candles []backtest.Candle) ([]backtest.Signal, er
 // Equality is neutral: returning to the same side after touching does not
 // create another signal. The last strictly unequal side is remembered.
 func (s SMACrossover) Analyze(candles []backtest.Candle) (CrossoverResult, error) {
+	return s.AnalyzeContext(context.Background(), candles)
+}
+
+// AnalyzeContext supports bounded request lifetimes without changing signals.
+func (s SMACrossover) AnalyzeContext(ctx context.Context, candles []backtest.Candle) (CrossoverResult, error) {
+	if err := ctx.Err(); err != nil {
+		return CrossoverResult{}, err
+	}
 	if err := s.Validate(); err != nil {
 		return CrossoverResult{}, err
 	}
@@ -51,17 +60,20 @@ func (s SMACrossover) Analyze(candles []backtest.Candle) (CrossoverResult, error
 	if len(candles) <= s.SlowPeriod {
 		return CrossoverResult{}, fmt.Errorf("SMA crossover requires more than %d candles", s.SlowPeriod)
 	}
-	fast, err := sma(candles, s.FastPeriod)
+	fast, err := sma(ctx, candles, s.FastPeriod)
 	if err != nil {
 		return CrossoverResult{}, err
 	}
-	slow, err := sma(candles, s.SlowPeriod)
+	slow, err := sma(ctx, candles, s.SlowPeriod)
 	if err != nil {
 		return CrossoverResult{}, err
 	}
 	result := CrossoverResult{Signals: make([]backtest.Signal, 0), FastSMA: fast, SlowSMA: slow}
 	lastSide := 0
 	for j, point := range slow {
+		if err := ctx.Err(); err != nil {
+			return CrossoverResult{}, err
+		}
 		fastValue := fast[point.CandleIndex-s.FastPeriod+1].Value
 		side := 0
 		if fastValue > point.Value {

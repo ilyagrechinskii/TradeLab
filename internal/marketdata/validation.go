@@ -17,6 +17,28 @@ type candleRequest struct {
 	count    int
 }
 
+// Range is the validated, closed UTC portion of a requested market interval.
+type Range struct {
+	Start time.Time
+	End   time.Time
+	Step  time.Duration
+	Count int
+}
+
+// ValidateRange shares provider limits with callers that must validate before
+// doing I/O (including extra history required by a strategy).
+func ValidateRange(symbol, interval string, start, end, now time.Time) (Range, error) {
+	r, err := prepareRequest(symbol, interval, start, end, now)
+	if err != nil {
+		return Range{}, err
+	}
+	return Range{Start: r.start, End: r.end, Step: r.step, Count: r.count}, nil
+}
+
+func (r Range) ValidateCandles(candles []backtest.Candle) error {
+	return validateCoverage(candles, candleRequest{start: r.Start, end: r.End, step: r.Step, count: r.Count})
+}
+
 func instrument(symbol, interval string) (time.Duration, time.Duration, error) {
 	switch symbol {
 	case "BTCUSDT", "ETHUSDT", "SOLUSDT":

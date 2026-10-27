@@ -1,6 +1,7 @@
 package backtest
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -19,6 +20,13 @@ type Metrics struct {
 // Break-even positions count as completed, but neither as wins nor losses.
 // This supports the engine's one-position, all-in spot model, not partial exits.
 func CalculateMetrics(result BacktestResult) (Metrics, error) {
+	return CalculateMetricsContext(context.Background(), result)
+}
+
+func CalculateMetricsContext(ctx context.Context, result BacktestResult) (Metrics, error) {
+	if err := ctx.Err(); err != nil {
+		return Metrics{}, err
+	}
 	if !finite(result.InitialCapital) || result.InitialCapital <= 0 ||
 		!finite(result.FinalEquity) || result.FinalEquity < 0 || !finite(result.TotalReturn) {
 		return Metrics{}, errors.New("metrics require finite returns and valid capital/equity")
@@ -29,6 +37,9 @@ func CalculateMetrics(result BacktestResult) (Metrics, error) {
 	metrics := Metrics{TotalReturn: result.TotalReturn}
 	peak := result.InitialCapital
 	for i, point := range result.EquityCurve {
+		if err := ctx.Err(); err != nil {
+			return Metrics{}, err
+		}
 		if !finite(point.Equity) || point.Equity < 0 {
 			return Metrics{}, fmt.Errorf("equity point %d must be non-negative and finite", i)
 		}
@@ -48,6 +59,9 @@ func CalculateMetrics(result BacktestResult) (Metrics, error) {
 	var wins int
 	var grossProfit, grossLoss float64
 	for i := range result.Trades {
+		if err := ctx.Err(); err != nil {
+			return Metrics{}, err
+		}
 		trade := &result.Trades[i]
 		if !finite(trade.Price) || trade.Price <= 0 || !finite(trade.Quantity) || trade.Quantity <= 0 ||
 			!finite(trade.Notional) || trade.Notional <= 0 || !finite(trade.Fee) || trade.Fee < 0 || trade.Fee > trade.Notional {
