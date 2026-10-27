@@ -12,6 +12,8 @@ import (
 
 	"github.com/ilyagrechinskii/TradeLab/internal/config"
 	"github.com/ilyagrechinskii/TradeLab/internal/httpapi"
+	"github.com/ilyagrechinskii/TradeLab/internal/marketdata"
+	"github.com/ilyagrechinskii/TradeLab/internal/simulation"
 )
 
 func main() {
@@ -30,13 +32,21 @@ func run(logger *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	provider, err := marketdata.NewBinance(marketdata.BinanceOptions{})
+	if err != nil {
+		return err
+	}
+	service, err := simulation.NewService(provider, simulation.Options{})
+	if err != nil {
+		return err
+	}
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewHandler(),
+		Handler:           httpapi.NewHandler(httpapi.Options{Service: service, AllowedOrigins: cfg.AllowedOrigins, Logger: logger}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		WriteTimeout:      40 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
