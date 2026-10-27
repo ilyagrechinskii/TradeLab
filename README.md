@@ -2,15 +2,16 @@
 
 TradeLab — пет-проект для GitHub-портфолио: веб-сервис для тестирования
 криптовалютных торговых стратегий на исторических данных (backtesting).
-Основа проекта — собственный движок на Go. Финансовые вычисления выполняются
-на backend; дополнительные статистические показатели будут добавлены позже.
+Основа проекта — собственный движок на Go. Финансовые и статистические
+вычисления выполняются на backend.
 
 ## Технологии и статус
 
-Реализованы этапы 1 и 2: HTTP-сервер на стандартном `net/http`, конфигурация
+Реализованы этапы 1–3: HTTP-сервер на стандартном `net/http`, конфигурация
 порта, JSON-логи через `log/slog`, graceful shutdown и независимое расчётное
 ядро бэктестинга с unit-тестами. Ядро принимает готовые сигналы и выполняет
-симуляцию Spot-торговли по историческим OHLCV-свечам.
+симуляцию Spot-торговли по историческим OHLCV-свечам. Добавлены стратегии
+SMA Crossover и Buy & Hold, показатели эффективности и сравнение стратегий.
 Внешних Go-зависимостей нет. Архитектура — модульный монолит; расчёты
 отделены от HTTP и не зависят от биржи, БД и frontend.
 
@@ -24,6 +25,7 @@ TradeLab — пет-проект для GitHub-портфолио: веб-сер
 ```text
 cmd/api/main.go             — запуск сервера и обработка сигналов
 internal/backtest/          — модели, исполнение сигналов, портфель и результаты
+internal/strategy/          — SMA, стратегии и запуск через существующий движок
 internal/config/            — загрузка и проверка PORT
 internal/httpapi/           — HTTP-маршруты и тесты
 ```
@@ -109,6 +111,7 @@ func DefaultConfig() Config
 func (cfg Config) Validate() error
 func ValidateCandles(candles []Candle) error
 func Run(candles []Candle, signals []Signal, cfg Config) (BacktestResult, error)
+func CalculateMetrics(result BacktestResult) (Metrics, error)
 ```
 
 Модели: `Candle`, `Signal`, `SignalType` (`Hold`, `Buy`, `Sell`), `Config`,
@@ -178,12 +181,141 @@ fmt.Printf("Equity: %.2f, fees: %.2f, return: %.2f%%\n",
   Объём валидируется, но не ограничивает исполнение. Сигналы предоставляются
   вызывающим кодом: их генератор должен самостоятельно избегать будущих данных.
 - Журнал хранит исполненные операции, а не пары «вход — выход».
-  Стратегии и сложные статистические показатели ещё не реализованы.
+  Метрики вычисляются отдельно через `CalculateMetrics`.
+
+## Стратегии и показатели
+
+Пакет `internal/strategy` зависит от моделей и публичного API `backtest`.
+Обратной зависимости нет. Контракт стратегии содержит один метод:
+
+```go
+type Strategy interface {
+    Generate(candles []backtest.Candle) ([]backtest.Signal, error)
+}
+```
+
+Стратегии только анализируют свечи и создают сигналы. Исполнение, комиссии,
+проскальзывание и состояние портфеля остаются в `backtest.Run`.
+
+Публичный API пакета `strategy`:
+
+```go
+func DefaultSMACrossover() SMACrossover
+func (s SMACrossover) Validate() error
+func (s SMACrossover) Generate(candles []backtest.Candle) ([]backtest.Signal, error)
+func (s SMACrossover) Analyze(candles []backtest.Candle) (CrossoverResult, error)
+func (BuyAndHold) Generate(candles []backtest.Candle) ([]backtest.Signal, error)
+func SMA(candles []backtest.Candle, period int) ([]SMAPoint, error)
+func Run(candles []backtest.Candle, selected Strategy, cfg backtest.Config) (Report, error)
+func CompareWithBuyAndHold(candles []backtest.Candle, selected Strategy, cfg backtest.Config) (Comparison, error)
+```
+
+`SMACrossover` задаёт `FastPeriod` и `SlowPeriod`, по умолчанию 10 и 30.
+Нужно `0 < FastPeriod < SlowPeriod` и не менее `SlowPeriod + 1` свечей:
+пересечение требует двух полных окон медленной SMA. Нулевые параметры
+не заменяются значениями по умолчанию — используйте `DefaultSMACrossover()`.
+
+Обе SMA считаются по `Close` скользящей суммой с компенсацией погрешности,
+за O(n), без пересчёта каждого окна. `Analyze` возвращает сигналы и обе серии
+для графика. Точки `SMAPoint` содержат индекс свечи, её `OpenTime` в UTC и
+среднее; до завершения окна точек нет. Отдельная `SMA` требует хотя бы
+`period` свечей. Переполнение суммы или неположительное вычисленное среднее
+возвращает ошибку.
+
+BUY возникает при переходе быстрой SMA снизу вверх относительно медленной,
+SELL — сверху вниз. Первое доступное положение средних само по себе сигналом
+не является. При равенстве сигнал не создаётся; сохраняется последняя строго
+неравная сторона. Поэтому касание с возвратом на ту же сторону не даёт
+повторный BUY/SELL, а переход через равенство на противоположную — даёт.
+Если первая пара средних равна, выход из равенства создаёт первый сигнал.
+Сигналы последней свечи сохраняются, но движок их не исполняет.
+
+Buy & Hold требует минимум две свечи и генерирует ровно один BUY на индексе 0.
+Покупка исполняется на `Open` свечи 1. Принудительной продажи в конце нет.
+
+Прямой запуск SMA Crossover через прежний API движка (для подготовленных
+свечей `candles`, с импортами `backtest` и `strategy` из `internal`):
+
+```go
+selected := strategy.DefaultSMACrossover()
+cfg := backtest.DefaultConfig()
+signals, err := selected.Generate(candles)
+if err != nil {
+    return err
+}
+result, err := backtest.Run(candles, signals, cfg)
+if err != nil {
+    return err
+}
+metrics, err := backtest.CalculateMetrics(result)
+if err != nil {
+    return err
+}
+fmt.Printf("Доходность: %.2f%%, максимальная просадка: %.2f%%\n",
+    result.TotalReturn, metrics.MaxDrawdown)
+```
+
+`strategy.Run(candles, selected, cfg)` объединяет эти шаги и возвращает `Report`
+с полями `Result` и `Metrics`. Для сравнения с контрольной стратегией:
+
+```go
+comparison, err := strategy.CompareWithBuyAndHold(candles, selected, cfg)
+if err != nil {
+    return err
+}
+fmt.Printf("SMA: %.2f%%, Buy & Hold: %.2f%%, разница: %.2f п.п.\n",
+    comparison.Strategy.Result.TotalReturn,
+    comparison.BuyAndHold.Result.TotalReturn,
+    comparison.ExcessReturn)
+```
+
+Оба запуска используют весь переданный интервал и один `cfg`. Период прогрева
+SMA включён в интервал сравнения: SMA в это время держит деньги, Buy & Hold
+уже может владеть активом. `ExcessReturn` — разность доходностей в процентных
+пунктах. Доходность Buy & Hold берётся из того же движка, а не из отношения
+первого и последнего `Close`.
+
+Полные проверяемые примеры с фиксированными свечами:
+`internal/strategy/example_test.go`. На этих демонстрационных данных SMA даёт
+100%, Buy & Hold −50%, разница — 150 п.п.; это проверка правил исполнения,
+а не оценка реальной прибыльности стратегии.
+
+`backtest.CalculateMetrics` принимает результат движка и возвращает:
+
+- `TotalReturn` — доходность, уже рассчитанную движком.
+- `MaxDrawdown` — максимальное процентное падение от предшествующего пика;
+  начальный капитал включается как первый пик. Показатель неотрицательный.
+- `CompletedTrades` — число завершённых пар Buy/Sell, а не число ордеров.
+- `WinRate` (`*float64`) — долю прибыльных закрытых позиций в процентах.
+- `ProfitFactor` (`*float64`) — сумму положительных PnL, делённую на модуль
+  суммы отрицательных PnL.
+
+PnL закрытой позиции: `(Sell.Notional - Sell.Fee) - (Buy.Notional + Buy.Fee)`.
+Проскальзывание уже входит в исполненные цены и `Notional`. Незакрытая
+позиция участвует в общей доходности и просадке через equity curve, но
+не участвует в Win Rate и Profit Factor. Безубыточная позиция считается
+завершённой, но не прибыльной и не убыточной.
+
+| Ситуация | Win Rate | Profit Factor |
+| --- | --- | --- |
+| Нет завершённых позиций | `nil` | `nil` |
+| Есть прибыль, нет убытков | Рассчитан | `nil` |
+| Только безубыточные позиции | 0% | `nil` |
+| Все позиции убыточные | 0% | 0 |
+| Есть прибыль и убытки | Рассчитан | Рассчитан |
+
+`nil` означает неопределённый показатель и сериализуется как JSON `null`.
+NaN/Infinity не возвращаются. Метрики рассчитаны на формат текущего движка:
+одна позиция и полное закрытие. Некорректная последовательность операций,
+частичные продажи, невалидные числа и переполнение возвращают ошибку.
+Сравнение SMA использует обычную точность `float64`, без настраиваемого
+порога пересечения. Sharpe Ratio, Sortino Ratio и оптимизация параметров
+не реализованы.
 
 ## Следующие этапы
 
 1. Получение и валидация исторических свечей Binance.
-2. Торговые стратегии и дополнительные метрики поверх проверенного ядра.
+2. HTTP API для запуска бэктестинга и получения результатов.
 3. Хранение данных в PostgreSQL через `pgx`.
 4. Интерфейс на React + TypeScript.
 5. Контейнеризация и развёртывание на выбранных бесплатных площадках.
