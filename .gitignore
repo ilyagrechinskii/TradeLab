@@ -1,2 +1,38 @@
-/bin/
+# Local configuration and credentials
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+/.aws/
+/.docker/
+
+# Build outputs and local caches
+/bin/
+/dist/
+/build/
+/GoCache/
+/GoModCache/
+/GoTemp/
+/GoPath/
+/.cache/
+*.exe
+*.test
+*.out
+coverage*
+
+# Temporary files and Docker data
+*.log
+*.tmp
+*.temp
+*.zip
+*.tar
+*.tar.gz
+*.vhdx
+
+# Local editor and agent settings
+/.idea/
+/.vscode/
+/.agents/
+/.codex/
