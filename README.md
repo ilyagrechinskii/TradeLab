@@ -10,8 +10,9 @@ TradeLab — инструмент исторического моделиров�
 
 ## Технологии и статус
 
-Подготовлены Dockerfile и `render.yaml` для этапа 6. Docker-сборка и локальный
-запуск проверены 29.10.2026 после переноса disk image на D:; deploy не выполнялся.
+Этапы 1–6 завершены. По результатам ручного деплоя backend работает на Render Free:
+https://tradelab-api-thrx.onrender.com. Docker-сборка и локальный запуск проверены
+29.10.2026 после переноса disk image на D:.
 Полная [инструкция Docker / Render Free](docs/deployment.md) включает проверку
 диска D:, результаты контейнерных проверок, ручной deploy и команды тестирования
 Binance именно с хостинга.
@@ -55,10 +56,10 @@ REST API объединяет загрузку свечей, стратегии,
 Внешних Go-зависимостей нет. Архитектура — модульный монолит; расчёты
 отделены от HTTP и не зависят от биржи, БД и frontend.
 
-В следующих этапах планируются PostgreSQL через `pgx`, React + TypeScript
-и Docker. Целевые площадки — Render Free
-для API и Cloudflare Pages для frontend; платные сервисы не требуются.
-Эти интеграции пока не реализованы. Постоянные фоновые процессы не нужны.
+Этап 7.2 подключает интерфейс React + TypeScript в `web/` к Go API:
+справочники, запуск бэктеста, метрики, сравнение и история ордеров.
+Следующие шаги — визуализация результатов и позднее
+PostgreSQL через `pgx`. Целевая площадка frontend — Cloudflare Pages.
 
 ## Структура
 
@@ -71,7 +72,127 @@ internal/marketdata/        — Binance, проверка истории и те
 internal/simulation/        — ограниченный запуск расчётов и адаптер прогрева
 internal/config/            — загрузка и проверка PORT
 internal/httpapi/           — HTTP-маршруты и тесты
+web/                        — React + TypeScript frontend (этап 7.2)
 ```
+
+## Frontend — этап 7.2
+
+React + TypeScript + Vite, CSS с переменными, Lucide React. Frontend находится
+в `web/` и собирается в статические файлы. Требуются Node.js 24.11.0+ и npm.
+
+На Windows все установки, кэши и временные файлы размещаются на D:.
+Переменные ниже действуют только в текущем PowerShell-сеансе:
+
+```powershell
+Set-Location D:\go_projects\TradeLab
+New-Item -ItemType Directory -Force D:\NpmCache, D:\FrontendTemp | Out-Null
+$env:npm_config_cache = "D:\NpmCache"
+$env:TEMP = "D:\FrontendTemp"
+$env:TMP = "D:\FrontendTemp"
+cd web
+npm install
+Copy-Item .env.example .env.local
+npm run dev
+```
+
+Если `.env.local` уже существует, отредактируйте его без перезаписи.
+Для повторяемой установки зависимостей используйте `npm ci`.
+Минимальный запуск после настройки окружения:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Откройте http://127.0.0.1:5173 (или http://localhost:5173).
+В `web/.env.local` задаётся публичный адрес backend:
+
+```env
+VITE_API_BASE_URL=https://tradelab-api-thrx.onrender.com
+```
+
+После изменения env перезапустите Vite; для публикации пересоберите frontend.
+Переменные с префиксом VITE_ видны в браузере: секреты в них хранить нельзя.
+Шаблон `web/.env.example` хранится в Git; `.env.local` исключён.
+
+### CORS на Render
+
+Go-код уже поддерживает точный список origins через `CORS_ALLOWED_ORIGINS`.
+В Render → Web Service → Environment вручную укажите:
+
+```env
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+При использовании preview добавьте отдельно `http://localhost:4173`
+и/или `http://127.0.0.1:4173`. В дальнейшем добавьте точный HTTPS origin
+Cloudflare Pages. Origins задаются без пути и завершающего слеша.
+localhost и 127.0.0.1 — разные origins; wildcard не используется.
+Изменение окружения и перезапуск Render пользователь выполняет отдельно;
+в этом этапе настройки сервера автоматически не меняются.
+
+### Работа приложения
+
+При открытии загружаются markets и strategies; доступные значения,
+defaults и лимиты берутся из API. При сбое доступны Retry и отмена ожидания,
+без фиктивных справочников. Форма проверяет UTC-даты с точностью до дня,
+капитал, проценты, периоды SMA и общие лимиты истории с прогревом.
+End date не включается. Для Buy & Hold параметры SMA не передаются.
+
+Run Backtest отправляет один POST. Повторный submit блокируется, запрос
+можно отменить. Клиент ждёт справочники до 120 секунд, бэктест до 90 секунд;
+через 8 секунд напоминает о возможном холодном старте Render.
+HTTP 504 от Go/Binance показывается отдельно от истечения клиентского
+ожидания. Лимиты backend не менялись. Polling, keep-alive запросов
+и автоматических повторов POST нет.
+
+Ответ проверяется на соответствие структуре перед отображением.
+В React state сохраняется весь результат, включая equity_curve, indicators,
+trades и market. Метрики и Buy & Hold берутся из Go; frontend только
+форматирует значения. Null-метрики отображаются как —. Разница доходности
+показывается в процентных пунктах. Для Buy & Hold сравнение с собой скрыто.
+Таблица ордеров прокручивается внутри панели. В начале нового запуска старый
+результат очищается; редактирование формы не меняет контекст уже завершённого
+расчёта. Отмена прекращает ожидание/соединение со стороны клиента;
+завершение вычисления на сервере зависит от передачи отмены через сеть.
+
+Графики пока не подключены: области показывают готовность данных и сообщение
+о следующем этапе. Нет случайных линий, синтетических результатов в production,
+сохранения результатов или live trading.
+
+### Проверки frontend
+
+Из `web/`:
+
+```bash
+npm run typecheck
+npm test
+npm run test:ui
+npm run build
+npm run preview
+```
+
+Unit-тесты используют mock fetch и сохранённый реальный JSON из
+`docs/examples/`. UI-тест запускает отдельный Vite на 5183 и перехватывает
+API-запросы; Render и Binance ему не нужны. На Windows используется
+установленный Microsoft Edge; на Linux/macOS предварительно установите
+браузер командой `npx playwright install chromium`.
+Не устанавливайте браузер на C: при ограниченном месте; для скачиваемых
+браузеров задавайте `PLAYWRIGHT_BROWSERS_PATH` на D:.
+Playwright — только dev dependency.
+
+Сборка создаёт `web/dist/`, preview доступен на http://127.0.0.1:4173.
+Для будущего Cloudflare Pages: root directory `web`,
+build command `npm run build`, output directory `dist`;
+`VITE_API_BASE_URL` задаётся в build environment. Деплой здесь не выполняется.
+
+Проверка реальной сети: выбрать BTCUSDT, 1h, SMA 10/30, период
+[2024-01-01, 2024-01-08), капитал 10000, комиссия 0.1%, slippage 0.
+Известный сохранённый ответ Go: Total Return ≈ +3.2908%,
+Final Equity ≈ 10329.08 USDT, Buy & Hold ≈ +3.3194%,
+Completed Trades 4, Win Rate 25%. При недоступности сети обычные тесты
+не подменяют production-данные этим примером.
 
 ## Локальный запуск
 
@@ -643,6 +764,6 @@ TRADELAB_BINANCE_INTEGRATION=1 go test ./internal/marketdata -run '^TestBinanceI
 
 ## Следующие этапы
 
-1. Хранение данных в PostgreSQL через `pgx`.
-2. Интерфейс на React + TypeScript.
-3. Контейнеризация и развёртывание на выбранных бесплатных площадках.
+1. Этап 7.3: графики и визуализация результатов.
+2. Публикация frontend на Cloudflare Pages.
+3. Хранение данных в PostgreSQL через `pgx`.
