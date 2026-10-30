@@ -195,8 +195,10 @@ func (a *api) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, context.Canceled):
 		a.failure(w, 408, "request_canceled", "request was canceled")
 	case errors.Is(err, context.DeadlineExceeded):
+		a.logger.Warn("request time limit reached")
 		a.failure(w, 504, "request_timeout", "request exceeded its time limit")
 	case errors.As(err, &upstream):
+		a.logger.Warn("market data HTTP request failed", "upstream_status", upstream.StatusCode)
 		if upstream.RetryAfter > 0 {
 			seconds := upstream.RetryAfter / time.Second
 			if upstream.RetryAfter%time.Second != 0 {
@@ -219,12 +221,14 @@ func (a *api) handleError(w http.ResponseWriter, err error) {
 			}
 		}
 	case errors.As(err, &network):
+		a.logger.Warn("market data network request failed", "timeout", network.Timeout())
 		if network.Timeout() {
 			a.failure(w, 504, "upstream_timeout", "market data request timed out")
 		} else {
 			a.failure(w, 503, "market_data_unavailable", "market data source is unavailable")
 		}
 	case errors.As(err, &data):
+		a.logger.Warn("market data history failed validation")
 		a.failure(w, 502, "market_data_error", "market data source returned incomplete or invalid history")
 	default:
 		a.logger.Error("API request failed unexpectedly")
