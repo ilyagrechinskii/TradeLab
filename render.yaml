@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: tradelab-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: "off"
+    envVars:
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""
