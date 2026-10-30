@@ -1,0 +1,72 @@
+{
+  "markets": {
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT"
+    ],
+    "intervals": [
+      "1h",
+      "4h",
+      "1d"
+    ],
+    "limits": {
+      "max_candles": 3000,
+      "max_days": {
+        "1h": 90,
+        "4h": 365,
+        "1d": 365
+      },
+      "range": "[start, end)",
+      "time_zone": "UTC",
+      "warmup_included_in_limits": true
+    }
+  },
+  "strategies": {
+    "strategies": [
+      {
+        "type": "sma_crossover",
+        "parameters": {
+          "fast_period": {
+            "default": 10,
+            "minimum": 1,
+            "maximum": 2997
+          },
+          "slow_period": {
+            "default": 30,
+            "minimum": 2,
+            "maximum": 2998
+          }
+        },
+        "constraints": [
+          "fast_period < slow_period",
+          "slow_period warmup candles count toward market limits",
+          "at least two trading candles"
+        ]
+      },
+      {
+        "type": "buy_and_hold",
+        "parameters": {},
+        "constraints": [
+          "at least two trading candles"
+        ]
+      }
+    ],
+    "configuration": {
+      "initial_capital": {
+        "default": 10000,
+        "minimum_exclusive": 0
+      },
+      "fee_percent": {
+        "default": 0.1,
+        "minimum": 0,
+        "maximum_exclusive": 100
+      },
+      "slippage_percent": {
+        "default": 0,
+        "minimum": 0,
+        "maximum_exclusive": 100
+      }
+    }
+  }
+}
