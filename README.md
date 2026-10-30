@@ -10,6 +10,40 @@ TradeLab — инструмент исторического моделиров�
 
 ## Технологии и статус
 
+Подготовлены Dockerfile и `render.yaml` для этапа 6. Docker-сборка и локальный
+запуск проверены 29.10.2026 после переноса disk image на D:; deploy не выполнялся.
+Полная [инструкция Docker / Render Free](docs/deployment.md) включает проверку
+диска D:, результаты контейнерных проверок, ручной deploy и команды тестирования
+Binance именно с хостинга.
+
+Windows: ресурсоёмкие проверки выполняются из `D:\go_projects\TradeLab`,
+с `GOCACHE=D:\GoCache`, `GOMODCACHE=D:\GoModCache`, `GOTMPDIR=D:\GoTemp`.
+Перед `docker build` обязательно проверьте Disk image location в Docker Desktop:
+переменные Go и расположение checkout сами по себе не переносят Docker storage.
+
+После ручного переноса, из checkout на D::
+
+```powershell
+docker build --platform linux/amd64 -t tradelab-api .
+docker run --rm -p 8080:8080 -e PORT=8080 tradelab-api
+```
+
+Ручной Render: New → Web Service → репозиторий TradeLab → Docker → Free →
+Health Check Path `/healthz`, Auto-Deploy Off. `PORT` предоставляет Render;
+`CORS_ALLOWED_ORIGINS` — точные frontend origins или пустое значение.
+Нажатие Create Web Service — отдельное действие деплоя, здесь не выполненное.
+Free засыпает после 15 минут простоя, холодный старт обычно занимает около
+минуты; [ограничения и учёт потребления](https://render.com/docs/free) необходимо
+проверить до создания ресурса. Постоянный фоновый процесс проекту не требуется.
+
+Демонстрация без Binance и без нового публичного endpoint:
+
+```powershell
+go run ./cmd/marketcheck -fixture -backtest
+```
+
+Результат явно помечен `source: fixture`; это синтетический Buy & Hold сценарий.
+
 Реализованы этапы 1–5: HTTP-сервер на стандартном `net/http`, конфигурация
 порта, JSON-логи через `log/slog`, graceful shutdown и независимое расчётное
 ядро бэктестинга с unit-тестами. Ядро принимает готовые сигналы и выполняет
