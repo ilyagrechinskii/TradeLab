@@ -336,7 +336,7 @@ func TestBinanceRequestValidation(t *testing.T) {
 		start    time.Time
 		end      time.Time
 	}{
-		{"unsupported symbol", "XRPUSDT", "1h", testStart, testStart.Add(time.Hour)},
+		{"unsupported symbol", "UNKNOWNUSDT", "1h", testStart, testStart.Add(time.Hour)},
 		{"unsupported interval", "BTCUSDT", "1m", testStart, testStart.Add(time.Hour)},
 		{"start off grid", "BTCUSDT", "1h", testStart.Add(time.Second), testStart.Add(time.Hour)},
 		{"end off grid", "BTCUSDT", "1h", testStart, testStart.Add(time.Hour + time.Nanosecond)},

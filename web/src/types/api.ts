@@ -1,6 +1,7 @@
 import type { BacktestParameters, StrategyType } from './backtest.ts';
 
 export interface Markets {
+  instruments?: { symbol: string; name: string }[];
   symbols: string[];
   intervals: string[];
   limits: { max_candles: number; max_days: Record<string, number>; range: string; time_zone: string; warmup_included_in_limits: boolean };

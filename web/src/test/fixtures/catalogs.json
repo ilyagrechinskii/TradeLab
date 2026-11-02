@@ -3,7 +3,16 @@
     "symbols": [
       "BTCUSDT",
       "ETHUSDT",
-      "SOLUSDT"
+      "SOLUSDT",
+      "BNBUSDT",
+      "XRPUSDT",
+      "ADAUSDT",
+      "DOGEUSDT",
+      "LINKUSDT",
+      "AVAXUSDT",
+      "LTCUSDT",
+      "TRXUSDT",
+      "DOTUSDT"
     ],
     "intervals": [
       "1h",
@@ -20,7 +29,57 @@
       "range": "[start, end)",
       "time_zone": "UTC",
       "warmup_included_in_limits": true
-    }
+    },
+    "instruments": [
+      {
+        "symbol": "BTCUSDT",
+        "name": "Bitcoin"
+      },
+      {
+        "symbol": "ETHUSDT",
+        "name": "Ethereum"
+      },
+      {
+        "symbol": "SOLUSDT",
+        "name": "Solana"
+      },
+      {
+        "symbol": "BNBUSDT",
+        "name": "BNB"
+      },
+      {
+        "symbol": "XRPUSDT",
+        "name": "XRP"
+      },
+      {
+        "symbol": "ADAUSDT",
+        "name": "Cardano"
+      },
+      {
+        "symbol": "DOGEUSDT",
+        "name": "Dogecoin"
+      },
+      {
+        "symbol": "LINKUSDT",
+        "name": "Chainlink"
+      },
+      {
+        "symbol": "AVAXUSDT",
+        "name": "Avalanche"
+      },
+      {
+        "symbol": "LTCUSDT",
+        "name": "Litecoin"
+      },
+      {
+        "symbol": "TRXUSDT",
+        "name": "TRON"
+      },
+      {
+        "symbol": "DOTUSDT",
+        "name": "Polkadot"
+      }
+    ]
   },
   "strategies": {
     "strategies": [

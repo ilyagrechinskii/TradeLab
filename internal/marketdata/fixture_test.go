@@ -68,7 +68,7 @@ func TestFixtureValidation(t *testing.T) {
 			}
 		})
 	}
-	if _, err := marketdata.NewFixtureProvider("XRPUSDT", "1h", fixtureCandles()); err == nil {
+	if _, err := marketdata.NewFixtureProvider("UNKNOWNUSDT", "1h", fixtureCandles()); err == nil {
 		t.Error("accepted unsupported fixture symbol")
 	}
 	provider, err := marketdata.NewFixtureProvider("BTCUSDT", "1h", fixtureCandles())

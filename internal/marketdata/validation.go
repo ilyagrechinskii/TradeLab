@@ -40,10 +40,8 @@ func (r Range) ValidateCandles(candles []backtest.Candle) error {
 }
 
 func instrument(symbol, interval string) (time.Duration, time.Duration, error) {
-	switch symbol {
-	case "BTCUSDT", "ETHUSDT", "SOLUSDT":
-	default:
-		return 0, 0, fmt.Errorf("unsupported symbol %q: use BTCUSDT, ETHUSDT or SOLUSDT", symbol)
+	if !supportedSymbol(symbol) {
+		return 0, 0, fmt.Errorf("unsupported symbol %q", symbol)
 	}
 	switch interval {
 	case "1h":

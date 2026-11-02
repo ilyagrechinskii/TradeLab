@@ -139,7 +139,7 @@ func backtestDTO(out simulation.Outcome) backtestResponse {
 
 func markets() any {
 	return map[string]any{
-		"symbols": []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}, "intervals": []string{"1h", "4h", "1d"},
+		"symbols": marketdata.SupportedSymbols(), "instruments": marketdata.Markets(), "intervals": []string{"1h", "4h", "1d"},
 		"limits": map[string]any{"max_candles": marketdata.MaxCandles, "max_days": map[string]int{"1h": 90, "4h": 365, "1d": 365}, "range": "[start, end)", "time_zone": "UTC", "warmup_included_in_limits": true},
 	}
 }

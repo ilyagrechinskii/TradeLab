@@ -233,7 +233,7 @@ func TestValidationBeforeProvider(t *testing.T) {
 		name   string
 		mutate func(map[string]any)
 	}{
-		{"unknown symbol", func(b map[string]any) { b["symbol"] = "XRPUSDT" }},
+		{"unknown symbol", func(b map[string]any) { b["symbol"] = "UNKNOWNUSDT" }},
 		{"unknown interval", func(b map[string]any) { b["interval"] = "1m" }},
 		{"bad time", func(b map[string]any) { b["start"] = "today" }},
 		{"not UTC", func(b map[string]any) { b["start"] = "2024-01-01T03:00:00+03:00" }},

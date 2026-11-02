@@ -1,9 +1,10 @@
+import { locale } from '../i18n/config.ts';
 import type { Catalogs } from '../types/api.ts';
 import type { BacktestFormValues, BacktestParameters, FormErrors } from '../types/backtest.ts';
 
 const DAY = 86_400_000;
 export const intervalHours = (interval: string) => Number(interval.slice(0, -1)) * (interval.endsWith('d') ? 24 : 1);
-export const formatCount = (value: number) => new Intl.NumberFormat('en-US').format(value);
+export const formatCount = (value: number) => new Intl.NumberFormat(locale()).format(value);
 export const utcDate = (date: Date) => date.toISOString().slice(0, 10);
 
 export function defaultFormValues(catalogs: Catalogs, now = new Date()): BacktestFormValues {

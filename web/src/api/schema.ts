@@ -22,6 +22,7 @@ const trade = shape({ time, type: v => v === 'buy' || v === 'sell', price: numbe
 export function parseMarkets(v: unknown): Markets {
   if (!shape({ symbols: array(text), intervals: array(text), limits: shape({ max_candles: positive, max_days: record(positive), range: v => v === '[start, end)', time_zone: v => v === 'UTC', warmup_included_in_limits: v => v === true }) })(v)) throw new Error('schema');
   const result = v as Markets;
+  if(result.instruments !== undefined && (!array(shape({symbol:text,name:text}))(result.instruments) || !result.instruments.every(item=>result.symbols.includes(item.symbol)))) throw new Error('schema');
   if (!result.symbols.length || !result.intervals.length || !result.intervals.every(i => /^[1-9]\d*[hd]$/.test(i) && result.limits.max_days[i] > 0)) throw new Error('schema');
   return result;
 }

@@ -1,3 +1,4 @@
+import { tr } from '../i18n/config';
 import type { LucideIcon } from 'lucide-react';
 
 interface Props {
@@ -11,8 +12,8 @@ export default function EmptyState({ icon: Icon, title, description, compact = f
   return (
     <div className={'empty-state' + (compact ? ' empty-state-compact' : '')}>
       <span className="empty-icon"><Icon size={23} strokeWidth={1.5} aria-hidden="true" /></span>
-      <p className="empty-title">{title}</p>
-      <p className="empty-description">{description}</p>
+      <p className="empty-title">{tr(title)}</p>
+      <p className="empty-description">{tr(description)}</p>
     </div>
   );
 }
